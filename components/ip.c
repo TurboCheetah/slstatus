@@ -1,16 +1,18 @@
 /* See LICENSE file for copyright and license details. */
 #include <ifaddrs.h>
 #include <netdb.h>
+#include <net/if.h>
 #include <stdio.h>
 #include <string.h>
 #if defined(__OpenBSD__)
-	#include <sys/types.h>
 	#include <sys/socket.h>
+	#include <sys/types.h>
 #elif defined(__FreeBSD__)
 	#include <netinet/in.h>
 	#include <sys/socket.h>
 #endif
 
+#include "../slstatus.h"
 #include "../util.h"
 
 static const char *
@@ -26,9 +28,9 @@ ip(const char *interface, unsigned short sa_family)
 	}
 
 	for (ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next) {
-		if (!ifa->ifa_addr) {
+		if (!ifa->ifa_addr)
 			continue;
-		}
+
 		s = getnameinfo(ifa->ifa_addr, sizeof(struct sockaddr_in6),
 		                host, NI_MAXHOST, NULL, 0, NI_NUMERICHOST);
 		if (!strcmp(ifa->ifa_name, interface) &&
@@ -57,4 +59,29 @@ const char *
 ipv6(const char *interface)
 {
 	return ip(interface, AF_INET6);
+}
+
+const char *
+up(const char *interface)
+{
+	struct ifaddrs *ifaddr, *ifa;
+
+	if (getifaddrs(&ifaddr) < 0) {
+		warn("getifaddrs:");
+		return NULL;
+	}
+
+	for (ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next) {
+		if (!ifa->ifa_addr)
+			continue;
+
+		if (!strcmp(ifa->ifa_name, interface)) {
+			freeifaddrs(ifaddr);
+			return ifa->ifa_flags & IFF_UP ? "up" : "down";
+		}
+	}
+
+	freeifaddrs(ifaddr);
+
+	return NULL;
 }
